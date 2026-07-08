@@ -47,14 +47,14 @@ export default function ProductCard({ product }: ProductCardProps) {
   }
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-sand/60 transition-shadow duration-300 hover:shadow-md">
-      <div className="relative aspect-square w-full overflow-hidden bg-linen">
+    <div className="group flex flex-col overflow-hidden rounded-2xl bg-linen shadow-sm ring-1 ring-sand/70 transition-shadow duration-300 hover:shadow-md">
+      <div className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-white p-3">
         {product.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.image_url}
             alt={product.name}
-            className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+            className={`h-full w-full rounded-xl object-cover transition-transform duration-500 group-hover:scale-105 ${
               soldOut ? "opacity-60 grayscale" : ""
             }`}
             loading="lazy"

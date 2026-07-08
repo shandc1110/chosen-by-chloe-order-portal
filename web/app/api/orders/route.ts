@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { allocateOrderNumber, isOrderNumberConflict } from "@/lib/order-number";
+import { sendOrderConfirmationEmail } from "@/lib/order-email";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type {
   CreateOrderError,
@@ -22,10 +24,19 @@ type ProductRow = {
 
 const MAX_CAS_ATTEMPTS = 5;
 
-function isMissingColumnError(error: { code?: string; message?: string }, column: string): boolean {
+type SupabaseError = { code?: string; message?: string };
+
+/** Given a DB error, return which of the provided columns is missing, if any. */
+function findMissingColumn(error: SupabaseError, columns: string[]): string | null {
   // 42703 = undefined_column (Postgres), PGRST204 = column not found (PostgREST schema cache)
-  if (error.code === "42703" || error.code === "PGRST204") return true;
-  return Boolean(error.message && error.message.toLowerCase().includes(`'${column}'`));
+  const message = (error.message ?? "").toLowerCase();
+  const looksLikeMissingColumn =
+    error.code === "42703" || error.code === "PGRST204" || message.includes("column");
+  if (!looksLikeMissingColumn) return null;
+  for (const column of columns) {
+    if (message.includes(`'${column.toLowerCase()}'`)) return column;
+  }
+  return null;
 }
 
 function badRequest(message: string) {
@@ -116,6 +127,62 @@ async function restoreStock(
   }
 }
 
+/**
+ * Insert an order, degrading gracefully if newer optional columns
+ * (email, address, payment_method, currency, notes) do not exist yet in the DB.
+ * Any value whose column is missing is preserved by folding it into `notes`
+ * (when that column exists), so customer details are never silently lost.
+ */
+async function insertOrderWithFallback(
+  supabase: SupabaseClient,
+  fullPayload: Record<string, unknown>,
+): Promise<{
+  id: string | number | null;
+  order_number: string | null;
+  error: SupabaseError | null;
+}> {
+  const payload: Record<string, unknown> = { ...fullPayload };
+  const folded: string[] = [];
+  const maxAttempts = Object.keys(payload).length + 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data, error } = await supabase
+      .from("orders")
+      .insert(payload)
+      .select("id, order_number")
+      .single();
+
+    if (!error) {
+      return {
+        id: (data?.id as string | number) ?? null,
+        order_number: (data?.order_number as string | null) ?? null,
+        error: null,
+      };
+    }
+
+    const missing = findMissingColumn(error, Object.keys(payload));
+    if (!missing) return { id: null, order_number: null, error };
+
+    // Preserve the dropped value by folding it into notes (if notes survives).
+    const value = payload[missing];
+    if (missing !== "notes" && value != null && value !== "") {
+      folded.push(`${missing.replace(/_/g, " ")}: ${value}`);
+    }
+    delete payload[missing];
+
+    if ("notes" in payload) {
+      const original = typeof fullPayload.notes === "string" ? fullPayload.notes : "";
+      payload.notes = [original, ...folded].filter(Boolean).join(" | ") || null;
+    }
+  }
+
+  return {
+    id: null,
+    order_number: null,
+    error: { message: "Order table is missing required columns." },
+  };
+}
+
 export async function POST(request: Request): Promise<NextResponse<CreateOrderResponse>> {
   let body: CreateOrderRequest;
   try {
@@ -128,11 +195,20 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
   const name = customer?.name?.trim();
   const wechatName = customer?.wechat_name?.trim();
   const phone = customer?.phone?.trim();
+  const email = customer?.email?.trim();
+  const address = customer?.address?.trim();
+  const paymentMethod = customer?.payment_method?.trim();
+  const currencyRaw = customer?.currency?.trim().toUpperCase();
+  const currency = currencyRaw === "GBP" ? "GBP" : "CNY";
   const notes = customer?.notes?.trim() || null;
 
   if (!name) return badRequest("Customer name is required.");
-  if (!wechatName) return badRequest("WeChat name is required.");
+  if (!wechatName) return badRequest("WeChat ID is required.");
   if (!phone) return badRequest("Phone number is required.");
+  if (!email) return badRequest("Email address is required.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return badRequest("Please enter a valid email address.");
+  if (!address) return badRequest("Delivery address is required.");
+  if (!paymentMethod) return badRequest("Please choose a payment method.");
 
   const items = normaliseItems(body?.items);
   if (!items) return badRequest("Your cart is empty or contains invalid items.");
@@ -226,28 +302,38 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
     return sum + (product?.price ?? 0) * item.quantity;
   }, 0);
 
-  const baseOrder = {
+  const orderPayload = {
     customer_name: name,
     wechat_name: wechatName,
     phone,
+    email,
+    address,
+    payment_method: paymentMethod,
+    currency,
+    notes,
   };
 
-  let { data: orderRow, error: orderError } = await supabase
-    .from("orders")
-    .insert({ ...baseOrder, notes })
-    .select("id")
-    .single();
+  let orderId: string | number | null = null;
+  let orderNumber: string | null = null;
+  let orderError: SupabaseError | null = null;
 
-  // Gracefully degrade if the optional `notes` column has not been added yet.
-  if (orderError && isMissingColumnError(orderError, "notes")) {
-    ({ data: orderRow, error: orderError } = await supabase
-      .from("orders")
-      .insert(baseOrder)
-      .select("id")
-      .single());
+  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    const candidateNumber = await allocateOrderNumber(supabase);
+    const result = await insertOrderWithFallback(supabase, {
+      ...orderPayload,
+      order_number: candidateNumber,
+    });
+
+    orderId = result.id;
+    orderNumber = result.order_number ?? candidateNumber;
+    orderError = result.error;
+
+    if (!orderError && orderId != null) break;
+    if (orderError && isOrderNumberConflict(orderError)) continue;
+    break;
   }
 
-  if (orderError || !orderRow) {
+  if (orderError || orderId == null || !orderNumber) {
     await restoreStock(supabase, applied);
     return NextResponse.json<CreateOrderError>(
       { success: false, error: "Could not create your order. Please try again." },
@@ -255,7 +341,6 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
     );
   }
 
-  const orderId = orderRow.id as string | number;
   const orderItemsPayload = items.map((item) => {
     const product = productMap.get(String(item.product_id))!;
     return {
@@ -277,5 +362,34 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
     );
   }
 
-  return NextResponse.json({ success: true, order_id: orderId, total });
+  const emailSent = await sendOrderConfirmationEmail({
+    orderNumber,
+    customer: {
+      name,
+      wechat_name: wechatName,
+      phone,
+      email,
+      address,
+      payment_method: paymentMethod,
+      currency,
+      notes: notes ?? undefined,
+    },
+    items: items.map((item) => {
+      const product = productMap.get(String(item.product_id))!;
+      return {
+        name: product.name,
+        quantity: item.quantity,
+        price: product.price ?? 0,
+      };
+    }),
+    total,
+  });
+
+  return NextResponse.json({
+    success: true,
+    order_id: orderId,
+    order_number: orderNumber,
+    total,
+    email_sent: emailSent,
+  });
 }

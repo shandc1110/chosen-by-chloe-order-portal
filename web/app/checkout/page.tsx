@@ -10,10 +10,30 @@ type FormState = {
   name: string;
   wechat_name: string;
   phone: string;
+  email: string;
+  address: string;
+  payment_method: string;
+  currency: string;
   notes: string;
 };
 
-const initialForm: FormState = { name: "", wechat_name: "", phone: "", notes: "" };
+const initialForm: FormState = {
+  name: "",
+  wechat_name: "",
+  phone: "",
+  email: "",
+  address: "",
+  payment_method: "",
+  currency: "CNY",
+  notes: "",
+};
+
+const PAYMENT_METHODS = ["Bank transfer", "WeChat Pay", "Alipay"];
+
+const CURRENCIES = [
+  { value: "CNY", label: "RMB (¥)" },
+  { value: "GBP", label: "GBP (£)" },
+];
 
 export default function CheckoutPage() {
   const { items, totalItems, totalPrice, hydrated, setQuantity, removeItem, clear } = useCart();
@@ -22,6 +42,9 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [issues, setIssues] = useState<StockIssue[]>([]);
   const [confirmedOrderId, setConfirmedOrderId] = useState<string | number | null>(null);
+  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(null);
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+  const [confirmationEmailSent, setConfirmationEmailSent] = useState(false);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -42,6 +65,10 @@ export default function CheckoutPage() {
             name: form.name,
             wechat_name: form.wechat_name,
             phone: form.phone,
+            email: form.email,
+            address: form.address,
+            payment_method: form.payment_method,
+            currency: form.currency,
             notes: form.notes,
           },
           items: items.map((item) => ({
@@ -60,6 +87,9 @@ export default function CheckoutPage() {
       }
 
       setConfirmedOrderId(result.order_id);
+      setConfirmedOrderNumber(result.order_number);
+      setConfirmationEmail(form.email);
+      setConfirmationEmailSent(result.email_sent);
       clear();
     } catch {
       setError("Network error. Please check your connection and try again.");
@@ -78,9 +108,14 @@ export default function CheckoutPage() {
         <p className="mt-3 max-w-sm text-sm text-muted">
           Thank you! Your order has been placed. We&apos;ll be in touch on WeChat to
           confirm the details.
+          {confirmationEmailSent && confirmationEmail
+            ? ` A confirmation email has been sent to ${confirmationEmail}.`
+            : confirmationEmail
+              ? ` We could not send a confirmation email to ${confirmationEmail}, but your order is saved.`
+              : ""}
         </p>
         <p className="mt-2 text-xs uppercase tracking-widest text-clay">
-          Reference #{String(confirmedOrderId)}
+          Reference {confirmedOrderNumber ?? String(confirmedOrderId)}
         </p>
         <Link
           href="/"
@@ -200,10 +235,18 @@ export default function CheckoutPage() {
           autoComplete="name"
         />
         <Field
-          label="WeChat name"
+          label="WeChat ID"
           value={form.wechat_name}
           onChange={(v) => update("wechat_name", v)}
           required
+        />
+        <Field
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(v) => update("email", v)}
+          required
+          autoComplete="email"
         />
         <Field
           label="Phone"
@@ -212,6 +255,38 @@ export default function CheckoutPage() {
           onChange={(v) => update("phone", v)}
           required
           autoComplete="tel"
+        />
+
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-espresso">
+            Delivery address
+          </span>
+          <textarea
+            value={form.address}
+            onChange={(e) => update("address", e.target.value)}
+            rows={3}
+            required
+            autoComplete="street-address"
+            className="w-full rounded-2xl border border-sand bg-white px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-clay"
+            placeholder="Full delivery address, including postcode"
+          />
+        </label>
+
+        <Select
+          label="Payment method"
+          value={form.payment_method}
+          onChange={(v) => update("payment_method", v)}
+          placeholder="Select a payment method"
+          options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+          required
+        />
+
+        <Select
+          label="Currency"
+          value={form.currency}
+          onChange={(v) => update("currency", v)}
+          options={CURRENCIES}
+          required
         />
 
         <label className="block">
@@ -275,6 +350,40 @@ function Field({ label, value, onChange, type = "text", required, autoComplete }
         autoComplete={autoComplete}
         className="w-full rounded-2xl border border-sand bg-white px-4 py-3 text-sm text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-clay"
       />
+    </label>
+  );
+}
+
+type SelectProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  required?: boolean;
+};
+
+function Select({ label, value, onChange, options, placeholder, required }: SelectProps) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-medium text-espresso">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="w-full appearance-none rounded-2xl border border-sand bg-white px-4 py-3 text-sm text-ink outline-none transition-colors focus:border-clay"
+      >
+        {placeholder && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

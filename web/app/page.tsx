@@ -21,7 +21,13 @@ export default function Home() {
       if (error) {
         setError(error.message);
       } else {
-        setProducts((data as Product[]) ?? []);
+        // Keep sold-out items visible (clearly marked) but sort them last.
+        const rows = ((data as Product[]) ?? []).slice().sort((a, b) => {
+          const aOut = (a.stock ?? 0) <= 0 ? 1 : 0;
+          const bOut = (b.stock ?? 0) <= 0 ? 1 : 0;
+          return aOut - bOut;
+        });
+        setProducts(rows);
       }
       setLoading(false);
     }
@@ -30,15 +36,23 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="mx-auto min-h-full w-full max-w-2xl px-4">
-      <header className="pt-10 pb-6 text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.35em] text-clay">
-          Order Portal
-        </p>
-        <h1 className="mt-2 font-serif text-4xl text-espresso sm:text-5xl">
+    <main className="mx-auto min-h-full w-full max-w-3xl px-4">
+      <header className="pt-8 pb-8 text-center">
+        <div className="mx-auto mb-5 flex items-center justify-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://chosenbychloe.com/cdn/shop/files/TopLogo.jpg?v=1764941405&width=160"
+            alt="Chosen by Chloe"
+            className="h-14 w-14 rounded-full object-cover ring-1 ring-sand"
+          />
+        </div>
+        <h1 className="font-serif text-4xl text-espresso sm:text-5xl">
           Chosen by Chloe
         </h1>
-        <p className="mx-auto mt-3 max-w-sm text-sm text-muted">
+        <p className="mx-auto mt-3 text-sm font-medium tracking-wide text-clay">
+          Curated with Care · Exclusive Value · Proven by Choice
+        </p>
+        <p className="mx-auto mt-4 max-w-md text-sm text-muted">
           Handpicked pieces, ready to order. Add your favourites to the basket and
           check out.
         </p>

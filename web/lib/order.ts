@@ -9,6 +9,10 @@ export type OrderCustomer = {
   name: string;
   wechat_name: string;
   phone: string;
+  email: string;
+  address: string;
+  payment_method: string;
+  currency: string;
   notes?: string;
 };
 
@@ -27,7 +31,9 @@ export type StockIssue = {
 export type CreateOrderSuccess = {
   success: true;
   order_id: Product["id"];
+  order_number: string;
   total: number;
+  email_sent: boolean;
 };
 
 export type CreateOrderError = {

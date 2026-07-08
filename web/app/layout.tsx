@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Playfair_Display } from "next/font/google";
+import { Montserrat, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const playfair = Playfair_Display({
@@ -27,9 +28,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${playfair.variable} h-full antialiased`}
+      className={`${montserrat.variable} ${playfair.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-cream text-ink">
+      <body className="min-h-full text-ink">
+        <div className="w-full bg-espresso px-4 py-2 text-center">
+          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-cream">
+            Chosen by Chloe is now open — carefully chosen by us, beautifully lived by you.
+          </p>
+        </div>
         <CartProvider>{children}</CartProvider>
       </body>
     </html>
