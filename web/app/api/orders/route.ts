@@ -10,6 +10,7 @@ import {
 import { getDefaultWarehouseLocation } from "@/lib/warehouse/warehouses";
 import { computeTotalWeightGrams } from "@/lib/weight";
 import { priceForCurrency } from "@/lib/currency";
+import { getActiveTenant } from "@/lib/thomas/tenant/resolve";
 import type {
   CreateOrderError,
   CreateOrderRequest,
@@ -72,67 +73,6 @@ function normaliseItems(raw: unknown): OrderItemInput[] | null {
     }
   }
   return [...merged.values()];
-}
-
-/**
- * Atomically decrement stock using compare-and-swap so concurrent orders can
- * never oversell. Returns true on success, false if stock is insufficient or
- * the row could not be updated after several attempts.
- */
-async function decrementStock(
-  supabase: SupabaseClient,
-  productId: string | number,
-  quantity: number,
-): Promise<boolean> {
-  for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
-    const { data: current, error } = await supabase
-      .from("products")
-      .select("stock")
-      .eq("id", productId)
-      .single();
-
-    if (error || !current) return false;
-
-    const stock = (current.stock as number | null) ?? 0;
-    if (stock < quantity) return false;
-
-    const { data: updated, error: updateError } = await supabase
-      .from("products")
-      .update({ stock: stock - quantity })
-      .eq("id", productId)
-      .eq("stock", stock)
-      .select("id");
-
-    if (updateError) return false;
-    if (updated && updated.length > 0) return true;
-    // Row changed between read and write; retry.
-  }
-  return false;
-}
-
-/** Best-effort compensation: add stock back after a failed order. */
-async function restoreStock(
-  supabase: SupabaseClient,
-  applied: { productId: string | number; quantity: number }[],
-): Promise<void> {
-  for (const { productId, quantity } of applied) {
-    for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
-      const { data: current, error } = await supabase
-        .from("products")
-        .select("stock")
-        .eq("id", productId)
-        .single();
-      if (error || !current) break;
-      const stock = (current.stock as number | null) ?? 0;
-      const { data: updated } = await supabase
-        .from("products")
-        .update({ stock: stock + quantity })
-        .eq("id", productId)
-        .eq("stock", stock)
-        .select("id");
-      if (updated && updated.length > 0) break;
-    }
-  }
 }
 
 /**
@@ -288,60 +228,45 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
   // Allocate order number early so stock movements can reference it.
   const reservedOrderNumber = await allocateOrderNumber(supabase);
 
-  // Reserve stock via immutable ledger movements (falls back if warehouse not configured).
   const warehouseLoc = await getDefaultWarehouseLocation(supabase);
-  const applied: { productId: string | number; quantity: number }[] = [];
-
-  if (warehouseLoc) {
-    const { error: movError } = await recordCustomerOrderMovements(
-      supabase,
-      items.map((item) => ({ product_id: item.product_id, quantity: item.quantity })),
-      "pending",
-      reservedOrderNumber,
-      warehouseLoc.warehouseId,
-      warehouseLoc.locationId,
+  if (!warehouseLoc) {
+    return NextResponse.json<CreateOrderError>(
+      {
+        success: false,
+        error: "Inventory is not configured. Please run migration 0006 and try again later.",
+      },
+      { status: 503 },
     );
-    if (movError) {
-      return NextResponse.json<CreateOrderError>(
-        {
-          success: false,
-          error: "Some items sold out while you were checking out.",
-          issues: items.map((item) => {
-            const product = productMap.get(String(item.product_id));
-            return {
-              product_id: item.product_id,
-              name: product?.name ?? "Unknown item",
-              requested: item.quantity,
-              available: product?.stock ?? 0,
-            };
-          }),
-        },
-        { status: 409 },
-      );
-    }
-    for (const item of items) applied.push({ productId: item.product_id, quantity: item.quantity });
-  } else {
-    for (const item of items) {
-      const ok = await decrementStock(supabase, item.product_id, item.quantity);
-      if (!ok) {
-        await restoreStock(supabase, applied);
-        const product = productMap.get(String(item.product_id));
-        return NextResponse.json<CreateOrderError>(
-          {
-            success: false,
-            error: "Some items sold out while you were checking out.",
-            issues: [{
-              product_id: item.product_id,
-              name: product?.name ?? "Unknown item",
-              requested: item.quantity,
-              available: product?.stock ?? 0,
-            }],
-          },
-          { status: 409 },
-        );
-      }
-      applied.push({ productId: item.product_id, quantity: item.quantity });
-    }
+  }
+
+  const applied = items.map((item) => ({ productId: item.product_id, quantity: item.quantity }));
+
+  const { error: movError } = await recordCustomerOrderMovements(
+    supabase,
+    items.map((item) => ({ product_id: item.product_id, quantity: item.quantity })),
+    "pending",
+    reservedOrderNumber,
+    warehouseLoc.warehouseId,
+    warehouseLoc.locationId,
+  );
+
+  if (movError) {
+    return NextResponse.json<CreateOrderError>(
+      {
+        success: false,
+        error: "Some items sold out while you were checking out.",
+        issues: items.map((item) => {
+          const product = productMap.get(String(item.product_id));
+          return {
+            product_id: item.product_id,
+            name: product?.name ?? "Unknown item",
+            requested: item.quantity,
+            available: product?.stock ?? 0,
+          };
+        }),
+      },
+      { status: 409 },
+    );
   }
 
   const totalCny = items.reduce((sum, item) => {
@@ -357,6 +282,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
     }),
   );
 
+  const tenant = getActiveTenant();
   const orderPayload = {
     customer_name: customerName,
     first_name: firstName,
@@ -371,6 +297,7 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
     notes,
     total_weight_grams: totalWeightGrams,
     fulfilment_status: "pending",
+    organization_id: tenant.organizationId,
   };
 
   let orderId: string | number | null = null;
@@ -394,17 +321,13 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
   }
 
   if (orderError || orderId == null || !orderNumber) {
-    if (warehouseLoc) {
-      await restoreCustomerOrderMovements(
-        supabase,
-        applied.map((a) => ({ product_id: a.productId, quantity: a.quantity })),
-        reservedOrderNumber,
-        warehouseLoc.warehouseId,
-        warehouseLoc.locationId,
-      );
-    } else {
-      await restoreStock(supabase, applied);
-    }
+    await restoreCustomerOrderMovements(
+      supabase,
+      applied.map((a) => ({ product_id: a.productId, quantity: a.quantity })),
+      reservedOrderNumber,
+      warehouseLoc.warehouseId,
+      warehouseLoc.locationId,
+    );
     return NextResponse.json<CreateOrderError>(
       { success: false, error: "Could not create your order. Please try again." },
       { status: 500 },
@@ -426,17 +349,13 @@ export async function POST(request: Request): Promise<NextResponse<CreateOrderRe
 
   if (itemsError) {
     await supabase.from("orders").delete().eq("id", orderId);
-    if (warehouseLoc) {
-      await restoreCustomerOrderMovements(
-        supabase,
-        applied.map((a) => ({ product_id: a.productId, quantity: a.quantity })),
-        orderNumber,
-        warehouseLoc.warehouseId,
-        warehouseLoc.locationId,
-      );
-    } else {
-      await restoreStock(supabase, applied);
-    }
+    await restoreCustomerOrderMovements(
+      supabase,
+      applied.map((a) => ({ product_id: a.productId, quantity: a.quantity })),
+      orderNumber,
+      warehouseLoc.warehouseId,
+      warehouseLoc.locationId,
+    );
     return NextResponse.json<CreateOrderError>(
       { success: false, error: "Could not save your order items. Please try again." },
       { status: 500 },

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { THOMAS, getClientTenant } from "@/lib/thomas";
 
 const MODULES = [
   {
@@ -33,6 +34,7 @@ const MODULES = [
 
 export default function AdminConsolePage() {
   const router = useRouter();
+  const tenant = getClientTenant();
 
   async function signOut() {
     const supabase = createClient();
@@ -44,8 +46,9 @@ export default function AdminConsolePage() {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-10 pb-16">
       <header className="mb-10 text-center">
-        <p className="text-xs uppercase tracking-[0.3em] text-muted">Chosen by Chloe OS</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-muted">{THOMAS.name}</p>
         <h1 className="mt-2 font-serif text-4xl text-espresso">Admin Console</h1>
+        <p className="mx-auto mt-2 text-sm font-medium text-clay">{tenant.name}</p>
         <p className="mx-auto mt-3 max-w-md text-sm text-muted">
           Manage orders, warehouse operations, purchasing, and inventory from one place.
         </p>

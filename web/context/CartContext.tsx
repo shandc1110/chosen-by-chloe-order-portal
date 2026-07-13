@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Product } from "@/lib/types";
+import { getClientTenant } from "@/lib/thomas/tenant/resolve";
 
 export type CartItem = {
   product: Product;
@@ -30,7 +31,7 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-const STORAGE_KEY = "cbc-cart-v1";
+const STORAGE_KEY = getClientTenant().commerce.cartStorageKey;
 
 function clampToStock(quantity: number, product: Product): number {
   const stock = product.stock ?? 0;

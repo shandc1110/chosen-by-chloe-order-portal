@@ -1,5 +1,4 @@
-/** Fixed CNY → GBP conversion rate: ¥9.25 = £1 */
-export const CNY_TO_GBP_RATE = 9.25;
+import { getActiveTenant } from "@/lib/thomas/tenant/resolve";
 
 export type OrderCurrency = "CNY" | "GBP";
 
@@ -7,9 +6,14 @@ export function normaliseCurrency(value: string | null | undefined): OrderCurren
   return value?.trim().toUpperCase() === "GBP" ? "GBP" : "CNY";
 }
 
-/** Convert a CNY amount to GBP using the fixed rate. */
+function getCnyToGbpRate(): number {
+  return getActiveTenant().commerce.cnyToGbpRate;
+}
+
+/** Convert a CNY amount to GBP using the tenant exchange rate. */
 export function convertCnyToGbp(cnyAmount: number): number {
-  return Math.round((cnyAmount / CNY_TO_GBP_RATE) * 100) / 100;
+  const rate = getCnyToGbpRate();
+  return Math.round((cnyAmount / rate) * 100) / 100;
 }
 
 /** Return the order price for the chosen currency (catalog prices are stored in CNY). */
@@ -17,3 +21,6 @@ export function priceForCurrency(cnyPrice: number, currency: string | null | und
   const code = normaliseCurrency(currency);
   return code === "GBP" ? convertCnyToGbp(cnyPrice) : cnyPrice;
 }
+
+/** @deprecated Use getActiveTenant().commerce.cnyToGbpRate */
+export const CNY_TO_GBP_RATE = 9.25;

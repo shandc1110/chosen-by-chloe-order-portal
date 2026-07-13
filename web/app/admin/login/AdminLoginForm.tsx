@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { THOMAS, getClientTenant } from "@/lib/thomas";
 
 export default function AdminLoginForm() {
   const router = useRouter();
@@ -14,6 +15,8 @@ export default function AdminLoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const tenant = getClientTenant();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,9 +43,9 @@ export default function AdminLoginForm() {
       </Link>
 
       <div className="rounded-3xl bg-white p-8 ring-1 ring-sand/60">
-        <p className="text-xs uppercase tracking-[0.3em] text-muted">Chosen by Chloe OS</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-muted">{THOMAS.name}</p>
         <h1 className="mt-2 font-serif text-3xl text-espresso">Admin Login</h1>
-        <p className="mt-2 text-sm text-muted">Sign in to access the admin console.</p>
+        <p className="mt-2 text-sm text-muted">Sign in to {tenant.name} on {THOMAS.name}.</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <label className="block">

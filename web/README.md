@@ -1,8 +1,10 @@
-# Chosen by Chloe — Order Portal
+# Thomas OS
 
-A mobile-first ordering and fulfilment portal built with **Next.js 16**, **TypeScript**, **Tailwind CSS v4**, and **Supabase**.
+**Thomas** is a retail operating system. **Chosen by Chloe** is the first tenant.
 
-Customers browse active products, add them to a cart, and check out. Orders are written to Supabase with atomic stock reduction. Staff use the fulfilment dashboard to generate packing slips and push orders to Shopify for shipping label purchase.
+A mobile-first platform built with **Next.js 16**, **TypeScript**, **Tailwind CSS v4**, and **Supabase** — covering commerce, inventory, warehouse, procurement, and fulfilment.
+
+Customers browse the tenant storefront, add products to cart, and check out. Staff use the Thomas admin console to manage orders, stock, warehouse operations, and purchasing.
 
 ## Tech stack
 
@@ -139,6 +141,19 @@ Order weight is computed as `SUM(weight_grams × quantity)` and stored as `order
 | `0002_orders_checkout_fields.sql` | `email`, `address`, `payment_method`, `currency` |
 | `0003_orders_order_number.sql` | `order_number` (unique, e.g. CBC9001) |
 | `0004_fulfilment_fields.sql` | `products.weight_grams`, `orders.total_weight_grams`, `orders.shopify_draft_order_id`, `orders.fulfilment_status` |
+| `0005_order_customer_fields.sql` | `first_name`, `last_name`, `postcode` |
+| `0006_inventory_warehouse.sql` | Inventory ledger, warehouses, receiving, stock take |
+| `0007_warehouse_operations.sql` | Pick/pack/dispatch, warehouse status |
+| `0008_purchasing.sql` | Suppliers, POs, inbound shipments |
+| `0009_platform_foundation.sql` | Organizations, staff profiles, `organization_id` |
+
+## Admin access
+
+Staff sign in at `/admin/login` using Supabase Auth (email + password). Create users in **Supabase → Authentication → Users**.
+
+All `/api/*` routes require authentication except `POST /api/orders` (customer checkout).
+
+Tenant configuration lives in `tenants/chosen-by-chloe/`. Platform code lives in `lib/thomas/`.
 
 ## Scripts
 

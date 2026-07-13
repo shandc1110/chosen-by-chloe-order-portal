@@ -1,18 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getActiveTenant } from "@/lib/thomas/tenant/resolve";
 
-const PREFIX = "CBC";
-const START = 9001;
+function getOrderNumberConfig() {
+  const { orderNumberPrefix, orderNumberStart } = getActiveTenant().commerce;
+  return { prefix: orderNumberPrefix, start: orderNumberStart };
+}
 
 function parseOrderNumber(value: string | null | undefined): number | null {
   if (!value) return null;
-  const match = /^CBC(\d+)$/i.exec(value.trim());
+  const { prefix } = getOrderNumberConfig();
+  const pattern = new RegExp(`^${prefix}(\\d+)$`, "i");
+  const match = pattern.exec(value.trim());
   if (!match) return null;
   const num = Number(match[1]);
   return Number.isFinite(num) ? num : null;
 }
 
 export function formatOrderNumber(num: number): string {
-  return `${PREFIX}${num}`;
+  const { prefix } = getOrderNumberConfig();
+  return `${prefix}${num}`;
 }
 
 function isMissingOrderNumberColumn(error: { code?: string; message?: string }): boolean {
@@ -20,17 +26,17 @@ function isMissingOrderNumberColumn(error: { code?: string; message?: string }):
   return Boolean(error.message?.toLowerCase().includes("order_number"));
 }
 
-/** Fallback when the column has not been migrated yet: CBC9001 + existing row count. */
 async function allocateOrderNumberByCount(supabase: SupabaseClient): Promise<string> {
+  const { start } = getOrderNumberConfig();
   const { count, error } = await supabase
     .from("orders")
     .select("id", { count: "exact", head: true });
   if (error) throw error;
-  return formatOrderNumber(START + (count ?? 0));
+  return formatOrderNumber(start + (count ?? 0));
 }
 
-/** Next reference after the highest existing CBC number (defaults to CBC9001). */
 export async function allocateOrderNumber(supabase: SupabaseClient): Promise<string> {
+  const { start } = getOrderNumberConfig();
   const { data, error } = await supabase
     .from("orders")
     .select("order_number")
@@ -43,7 +49,7 @@ export async function allocateOrderNumber(supabase: SupabaseClient): Promise<str
   }
   if (error) throw error;
 
-  let max = START - 1;
+  let max = start - 1;
   for (const row of data ?? []) {
     const parsed = parseOrderNumber(row.order_number as string);
     if (parsed != null && parsed > max) max = parsed;

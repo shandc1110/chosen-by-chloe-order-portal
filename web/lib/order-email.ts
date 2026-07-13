@@ -1,8 +1,6 @@
 import { Resend } from "resend";
+import { getActiveTenant } from "@/lib/thomas/tenant/resolve";
 import type { OrderCustomer } from "./order";
-
-const LOGO_URL =
-  "https://chosenbychloe.com/cdn/shop/files/TopLogo.jpg?v=1764941405&width=160";
 
 export type OrderEmailItem = {
   name: string;
@@ -35,6 +33,7 @@ function escapeHtml(value: string): string {
 }
 
 function buildText(payload: OrderEmailPayload): string {
+  const tenant = getActiveTenant();
   const { orderNumber, customer, items, total } = payload;
   const fullName = `${customer.first_name} ${customer.last_name}`;
   const lines = [
@@ -68,13 +67,15 @@ function buildText(payload: OrderEmailPayload): string {
     "",
     "We'll be in touch on WeChat to confirm payment and delivery.",
     "",
-    "Chosen by Chloe",
+    tenant.brand.name,
   );
 
   return lines.join("\n");
 }
 
 function buildHtml(payload: OrderEmailPayload): string {
+  const tenant = getActiveTenant();
+  const { brand } = tenant;
   const { orderNumber, customer, items, total } = payload;
   const fullName = `${customer.first_name} ${customer.last_name}`;
   const itemRows = items
@@ -98,14 +99,14 @@ function buildHtml(payload: OrderEmailPayload): string {
     <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
       <div style="text-align:center;margin-bottom:24px;">
         <img
-          src="${LOGO_URL}"
-          alt="Chosen by Chloe"
+          src="${brand.logoUrl}"
+          alt="${escapeHtml(brand.name)}"
           width="72"
           height="72"
           style="display:inline-block;width:72px;height:72px;border-radius:9999px;object-fit:cover;border:1px solid #f0e8e4;"
         />
       </div>
-      <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#b08b7d;text-align:center;">Chosen by Chloe</p>
+      <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#b08b7d;text-align:center;">${escapeHtml(brand.name)}</p>
       <h1 style="margin:0 0 12px;font-size:28px;font-weight:normal;color:#3d2f2a;text-align:center;">Thank you for your order</h1>
       <p style="margin:0 0 24px;color:#6b5b55;line-height:1.6;">
         Hi ${escapeHtml(fullName)}, we've received your order. We'll be in touch on WeChat to confirm payment and delivery.
@@ -155,7 +156,8 @@ export async function sendOrderConfirmationEmail(
   }
 
   const resend = new Resend(apiKey);
-  const cc = (process.env.ORDER_EMAIL_CC ?? "dongchen@chosenbychloe.com")
+  const tenant = getActiveTenant();
+  const cc = (process.env.ORDER_EMAIL_CC ?? tenant.email.defaultCc)
     .split(",")
     .map((email) => email.trim())
     .filter(Boolean);
@@ -164,7 +166,7 @@ export async function sendOrderConfirmationEmail(
     from,
     to: payload.customer.email,
     cc,
-    subject: `Order confirmation ${payload.orderNumber} – Chosen by Chloe`,
+    subject: `Order confirmation ${payload.orderNumber} – ${tenant.email.subjectSuffix}`,
     html: buildHtml(payload),
     text: buildText(payload),
   });

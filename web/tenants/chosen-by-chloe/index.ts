@@ -1,0 +1,1 @@
+export { chosenByChloeTenant } from "./config";

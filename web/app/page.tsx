@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/lib/types";
+import { getClientTenant } from "@/lib/thomas";
 import Catalog from "@/components/Catalog";
 
 export default function Home() {
+  const tenant = getClientTenant();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,16 +44,16 @@ export default function Home() {
         <div className="mx-auto mb-5 flex items-center justify-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="https://chosenbychloe.com/cdn/shop/files/TopLogo.jpg?v=1764941405&width=160"
-            alt="Chosen by Chloe"
+            src={tenant.brand.logoUrl}
+            alt={tenant.brand.name}
             className="h-14 w-14 rounded-full object-cover ring-1 ring-sand"
           />
         </div>
         <h1 className="font-serif text-4xl text-espresso sm:text-5xl">
-          Chosen by Chloe
+          {tenant.brand.name}
         </h1>
         <p className="mx-auto mt-3 text-sm font-medium tracking-wide text-clay">
-          Curated with Care · Exclusive Value · Proven by Choice
+          {tenant.brand.tagline}
         </p>
         <p className="mx-auto mt-4 max-w-md text-sm text-muted">
           Handpicked pieces, ready to order. Add your favourites to the basket and

@@ -1,4 +1,5 @@
 import "server-only";
+import { getActiveTenant } from "@/lib/thomas/tenant/resolve";
 
 export type ShopifyConfig = {
   store: string;
@@ -42,5 +43,6 @@ export function getShopifyDraftOrderAdminUrl(draftOrderGid: string): string | nu
 
 /** Tag applied to every portal-synced draft order for duplicate detection. */
 export function portalOrderTag(orderNumber: string): string {
-  return `portal:${orderNumber}`;
+  const { shopifyPortalTagPrefix } = getActiveTenant().integrations;
+  return `${shopifyPortalTagPrefix}:${orderNumber}`;
 }
