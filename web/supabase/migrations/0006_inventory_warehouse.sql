@@ -65,7 +65,7 @@ create index if not exists warehouse_locations_warehouse_idx
 
 create table if not exists public.inventory_balances (
   id uuid primary key default gen_random_uuid(),
-  product_id bigint not null references public.products(id) on delete cascade,
+  product_id uuid not null references public.products(id) on delete cascade,
   warehouse_id uuid not null references public.warehouses(id) on delete cascade,
   location_id uuid not null references public.warehouse_locations(id) on delete cascade,
   available integer not null default 0,
@@ -91,7 +91,7 @@ create table if not exists public.stock_movements (
   id uuid primary key default gen_random_uuid(),
   movement_number text not null unique,
   movement_type text not null,
-  product_id bigint not null references public.products(id),
+  product_id uuid not null references public.products(id),
   sku text,
   quantity integer not null,
   warehouse_id uuid references public.warehouses(id),
@@ -131,7 +131,7 @@ create table if not exists public.goods_receipts (
 create table if not exists public.goods_receipt_lines (
   id uuid primary key default gen_random_uuid(),
   receipt_id uuid not null references public.goods_receipts(id) on delete cascade,
-  product_id bigint not null references public.products(id),
+  product_id uuid not null references public.products(id),
   quantity_expected integer not null default 0,
   quantity_received integer not null default 0
 );
@@ -151,7 +151,7 @@ create table if not exists public.stock_take_sessions (
 create table if not exists public.stock_take_lines (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.stock_take_sessions(id) on delete cascade,
-  product_id bigint not null references public.products(id),
+  product_id uuid not null references public.products(id),
   location_id uuid not null references public.warehouse_locations(id),
   system_quantity integer not null default 0,
   counted_quantity integer,
@@ -165,7 +165,7 @@ create table if not exists public.stock_take_lines (
 create table if not exists public.inventory_alerts (
   id uuid primary key default gen_random_uuid(),
   alert_type text not null,
-  product_id bigint references public.products(id) on delete cascade,
+  product_id uuid references public.products(id) on delete cascade,
   message text not null,
   severity text not null default 'warning',
   acknowledged boolean not null default false,

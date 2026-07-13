@@ -78,7 +78,7 @@ create table if not exists public.purchase_orders (
 create table if not exists public.purchase_order_lines (
   id uuid primary key default gen_random_uuid(),
   purchase_order_id uuid not null references public.purchase_orders(id) on delete cascade,
-  product_id bigint references public.products(id),
+  product_id uuid references public.products(id),
   sku text,
   product_name text not null,
   quantity integer not null,

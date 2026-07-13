@@ -16,7 +16,7 @@ create index if not exists orders_warehouse_status_idx
 create table if not exists public.warehouse_pick_lists (
   id uuid primary key default gen_random_uuid(),
   pick_list_number text not null unique,
-  order_id bigint not null references public.orders(id) on delete cascade,
+  order_id uuid not null references public.orders(id) on delete cascade,
   status text not null default 'pending',
   picked_by text,
   started_at timestamptz,
@@ -28,8 +28,8 @@ create table if not exists public.warehouse_pick_lists (
 create table if not exists public.warehouse_pick_lines (
   id uuid primary key default gen_random_uuid(),
   pick_list_id uuid not null references public.warehouse_pick_lists(id) on delete cascade,
-  order_item_id bigint,
-  product_id bigint not null references public.products(id),
+  order_item_id uuid,
+  product_id uuid not null references public.products(id),
   location_id uuid references public.warehouse_locations(id),
   location_code text not null,
   sku text,
@@ -47,7 +47,7 @@ create index if not exists warehouse_pick_lines_list_idx
 -- Packing sessions
 create table if not exists public.warehouse_pack_sessions (
   id uuid primary key default gen_random_uuid(),
-  order_id bigint not null references public.orders(id) on delete cascade,
+  order_id uuid not null references public.orders(id) on delete cascade,
   status text not null default 'in_progress',
   packed_by text,
   packing_slip_printed boolean not null default false,
@@ -59,7 +59,7 @@ create table if not exists public.warehouse_pack_sessions (
 create table if not exists public.warehouse_pack_verifications (
   id uuid primary key default gen_random_uuid(),
   pack_session_id uuid not null references public.warehouse_pack_sessions(id) on delete cascade,
-  product_id bigint not null references public.products(id),
+  product_id uuid not null references public.products(id),
   sku text,
   expected_quantity integer not null,
   verified_quantity integer not null default 0,
@@ -71,7 +71,7 @@ create table if not exists public.warehouse_pack_verifications (
 create table if not exists public.warehouse_events (
   id uuid primary key default gen_random_uuid(),
   event_type text not null,
-  order_id bigint references public.orders(id),
+  order_id uuid references public.orders(id),
   user_name text default 'system',
   duration_seconds integer,
   metadata jsonb default '{}'::jsonb,
