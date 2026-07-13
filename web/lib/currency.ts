@@ -10,6 +10,11 @@ function getCnyToGbpRate(): number {
   return getActiveTenant().commerce.cnyToGbpRate;
 }
 
+/** Tenant-configured CNY→GBP rate for display (e.g. checkout footer). */
+export function getDisplayCnyToGbpRate(): number {
+  return getCnyToGbpRate();
+}
+
 /** Convert a CNY amount to GBP using the tenant exchange rate. */
 export function convertCnyToGbp(cnyAmount: number): number {
   const rate = getCnyToGbpRate();

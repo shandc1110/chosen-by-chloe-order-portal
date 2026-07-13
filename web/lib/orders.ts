@@ -1,3 +1,4 @@
+import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   FulfilmentStatus,
@@ -69,11 +70,14 @@ function computeOrderTotal(items: OrderItemRecord[]): number {
   return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 }
 
-export async function listOrders(supabase: SupabaseClient): Promise<{
+export async function listOrders(
+  supabase: SupabaseClient,
+  organizationId?: string,
+): Promise<{
   orders: OrderListItem[];
   error: string | null;
 }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("orders")
     .select(
       `
@@ -82,6 +86,12 @@ export async function listOrders(supabase: SupabaseClient): Promise<{
     `,
     )
     .order("created_at", { ascending: false });
+
+  if (organizationId) {
+    query = query.eq("organization_id", organizationId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("listOrders failed:", error.message);
@@ -103,8 +113,9 @@ export async function listOrders(supabase: SupabaseClient): Promise<{
 export async function getOrderById(
   supabase: SupabaseClient,
   orderId: string,
+  organizationId?: string,
 ): Promise<{ order: OrderWithItems | null; error: string | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("orders")
     .select(
       `
@@ -119,8 +130,13 @@ export async function getOrderById(
       )
     `,
     )
-    .eq("id", orderId)
-    .single();
+    .eq("id", orderId);
+
+  if (organizationId) {
+    query = query.eq("organization_id", organizationId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) {
     console.error(`getOrderById(${orderId}) failed:`, error.message);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { downloadPackingSlip as downloadPackingSlipFile } from "@/lib/client/download-packing-slip";
 
 export type ShopifyPushState = {
   loading: boolean;
@@ -68,29 +69,10 @@ export function usePackingSlipDownload(orderId: string, orderNumber: string) {
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(`/api/orders/${orderId}/packing-slip`);
-      if (!response.ok) {
-        const result = (await response.json()) as { error?: string };
-        setError(result.error ?? "Could not download packing slip.");
-        setLoading(false);
-        return;
-      }
+    const { error: downloadError } = await downloadPackingSlipFile(orderId, orderNumber);
+    if (downloadError) setError(downloadError);
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `packing-slip-${orderNumber}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   }, [orderId, orderNumber]);
 
   return { loading, error, downloadPackingSlip };

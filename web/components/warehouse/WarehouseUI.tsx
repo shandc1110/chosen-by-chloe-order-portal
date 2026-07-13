@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { ModuleNav } from "@/components/thomas/ModuleNav";
 
 const NAV = [
   { href: "/admin/warehouse", label: "Warehouse", exact: true },
@@ -12,27 +11,7 @@ const NAV = [
 ];
 
 export function OpsNav() {
-  const pathname = usePathname();
-  return (
-    <nav className="mb-4 flex gap-2 overflow-x-auto pb-2">
-      {NAV.map((item) => {
-        const active = item.exact
-          ? pathname === item.href
-          : pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`shrink-0 rounded-full px-4 py-2.5 text-sm font-semibold ${
-              active ? "bg-cocoa text-cream" : "bg-linen text-espresso ring-1 ring-sand"
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  return <ModuleNav items={NAV} variant="compact" />;
 }
 
 export function ScanInput({

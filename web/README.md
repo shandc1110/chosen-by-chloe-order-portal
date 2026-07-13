@@ -55,10 +55,17 @@ Customers browse the tenant storefront, add products to cart, and check out. Sta
 
 3. **Apply database migrations**
 
-   Run all SQL files in `supabase/migrations/` against your Supabase database (in order). The latest migration (`0004_fulfilment_fields.sql`) adds product weights and fulfilment tracking.
+   Run all SQL files in `supabase/migrations/` against your Supabase database **in order** (0001 through 0009). Key milestones:
+
+   | Migration | Purpose |
+   |-----------|---------|
+   | 0006 | Inventory & warehouse ledger |
+   | 0007 | Pick, pack, dispatch |
+   | 0008 | Purchasing |
+   | 0009 | Organizations & tenant scoping |
 
    ```bash
-   npx tsx scripts/apply-migration.ts supabase/migrations/0004_fulfilment_fields.sql
+   npx tsx scripts/apply-migration.ts supabase/migrations/0009_platform_foundation.sql
    ```
 
 4. **Run the dev server**

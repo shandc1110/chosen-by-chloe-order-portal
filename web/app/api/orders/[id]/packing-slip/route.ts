@@ -1,30 +1,15 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { staffRoute } from "@/lib/thomas/api/staff-route";
+import { getOrganizationId } from "@/lib/thomas/tenant/scope";
 import { buildPackingSlipData, getOrderById } from "@/lib/orders";
 import { generatePackingSlipPdf } from "@/lib/pdf/packingSlip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  const { id } = await context.params;
-
-  let supabase;
-  try {
-    supabase = getSupabaseAdmin();
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "Server is not configured. Missing service role key." },
-      { status: 500 },
-    );
-  }
-
-  const { order, error } = await getOrderById(supabase, id);
+export const GET = staffRoute<{ id: string }>(async ({ supabase, params }) => {
+  const orgId = getOrganizationId();
+  const { order, error } = await getOrderById(supabase, params.id, orgId);
 
   if (error || !order) {
     return NextResponse.json(
@@ -47,10 +32,10 @@ export async function GET(
       },
     });
   } catch (err) {
-    console.error(`Packing slip generation failed for order ${id}:`, err);
+    console.error(`Packing slip generation failed for order ${params.id}:`, err);
     return NextResponse.json(
       { success: false, error: "Could not generate packing slip PDF." },
       { status: 500 },
     );
   }
-}
+});

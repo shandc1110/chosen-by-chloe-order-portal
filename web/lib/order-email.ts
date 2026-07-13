@@ -1,4 +1,6 @@
+import "server-only";
 import { Resend } from "resend";
+import { formatOrderPrice } from "@/lib/format";
 import { getActiveTenant } from "@/lib/thomas/tenant/resolve";
 import type { OrderCustomer } from "./order";
 
@@ -15,14 +17,6 @@ export type OrderEmailPayload = {
   total: number;
 };
 
-function formatOrderPrice(amount: number, currency: string): string {
-  const code = currency === "GBP" ? "GBP" : "CNY";
-  const locale = currency === "GBP" ? "en-GB" : "zh-CN";
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: code,
-  }).format(amount);
-}
 
 function escapeHtml(value: string): string {
   return value

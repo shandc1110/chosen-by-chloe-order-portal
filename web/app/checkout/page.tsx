@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useCart } from "@/context/CartContext";
-import { CNY_TO_GBP_RATE, priceForCurrency } from "@/lib/currency";
+import { getDisplayCnyToGbpRate, priceForCurrency } from "@/lib/currency";
 import { formatOrderPrice } from "@/lib/format";
 import type { CreateOrderResponse, StockIssue } from "@/lib/order";
 
@@ -329,7 +329,7 @@ export default function CheckoutPage() {
 
         {form.currency === "GBP" && (
           <p className="text-xs text-muted">
-            GBP prices use a fixed rate of ¥{CNY_TO_GBP_RATE} = £1.
+            GBP prices use a fixed rate of ¥{getDisplayCnyToGbpRate()} = £1.
           </p>
         )}
 

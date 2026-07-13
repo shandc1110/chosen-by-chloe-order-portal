@@ -1,54 +1,96 @@
-# Database Schema — Inventory Module
+# Database Schema — Thomas OS
 
-## Product Master (`products` — extended)
+## Platform (migration 0009)
+
+### `organizations`
 
 | Column | Type | Notes |
 |--------|------|-------|
+| id | uuid | PK |
+| slug | text | Unique tenant identifier |
+| name | text | Display name |
+| settings | jsonb | Tenant settings blob |
+
+Seed: Chosen by Chloe (`00000000-0000-0000-0000-000000000001`).
+
+### `staff_profiles`
+
+Links Supabase Auth users to an organisation. Table exists; application enforcement planned Sprint 010.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| user_id | uuid | FK → auth.users |
+| organization_id | uuid | FK → organizations |
+| role | text | Default `admin` |
+
+## Product Master (`products`)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| organization_id | uuid | FK → organizations (0009) |
 | sku | text | Unique |
 | name | text | |
 | brand | text | |
-| category | text | |
-| description | text | |
 | barcode | text | EAN-13 |
-| weight_grams | integer | |
-| length_mm, width_mm, height_mm | integer | |
-| country_of_origin | text | |
-| hs_code | text | |
-| cost_price | numeric | For valuation |
-| wholesale_price | numeric | |
-| retail_price | numeric | Customer price |
-| currency | text | Default CNY |
-| status | text | active / draft / discontinued |
-| image_url | text | Primary image |
-| gallery_images | jsonb | Array of URLs |
-| tags | text[] | |
+| cost_price, retail_price | numeric | Pricing |
+| stock | integer | Denormalised total (synced from ledger) |
 | low_stock_threshold | integer | Alert trigger |
-| stock | integer | Denormalized total (synced) |
+
+Full column list in migration `0006_inventory_warehouse.sql`.
+
+## Orders
+
+| Column | Type | Notes |
+|--------|------|-------|
+| organization_id | uuid | FK → organizations (0009) |
+| order_number | text | Tenant-prefixed (e.g. CBC-9001) |
+| warehouse_status | text | Pick/pack/dispatch lifecycle |
+| fulfilment_status | text | Shopify sync state |
 
 ## Warehouses
 
-- `warehouses` — id, code, name, address, is_default
+- `warehouses` — id, code, name, organization_id, is_default
 - `warehouse_locations` — id, warehouse_id, code, name
 
 ## Inventory
 
 - `inventory_balances` — per product × location buckets
-- `stock_movements` — immutable ledger
+- `stock_movements` — immutable ledger (ADR-002)
+
+## Warehouse Operations (0007)
+
+- `pick_lists`, `pick_list_lines`
+- `pack_sessions`, `pack_verifications`
+- `warehouse_events`
+
+## Purchasing (0008)
+
+- `suppliers`, `brands` — organization_id (0009)
+- `purchase_orders`, `purchase_order_lines` — organization_id on POs
+- `inbound_shipments` — **no organization_id yet** (tech debt TD-003)
 
 ## Receiving & Stock Take
 
 - `goods_receipts` + `goods_receipt_lines`
 - `stock_take_sessions` + `stock_take_lines`
 
-## Alerts
+## Migrations
 
-- `inventory_alerts` — generated on dashboard load
+Run in order in Supabase SQL Editor:
 
-## Migration
+| File | Sprint | Purpose |
+|------|--------|---------|
+| `0001`–`0005` | 001–005 | Core commerce |
+| `0006_inventory_warehouse.sql` | 006 | Product master, warehouses, ledger |
+| `0007_warehouse_operations.sql` | 007 | Pick, pack, dispatch |
+| `0008_purchasing.sql` | 008 | Suppliers, POs, shipments |
+| `0009_platform_foundation.sql` | 008.5 | Organizations, staff, org FKs |
 
-Run `0006_inventory_warehouse.sql` in Supabase SQL Editor.
+```bash
+cd web
+npx tsx scripts/apply-migration.ts supabase/migrations/0009_platform_foundation.sql
+```
 
-Seeds:
-- London Garage (A01, A02, A03) — default
-- Main Warehouse (R01, R02, R03)
-- Opening balance migration for existing stock
+## Query Scoping
+
+Sprint 009: list and dashboard queries filter by `organization_id` from `getOrganizationId()`. RLS policies are not yet enabled — access control is application-layer + service role.

@@ -6,8 +6,11 @@ import type { InboundShipment } from "@/types/purchase-order";
 
 export async function listSuppliers(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ suppliers: Supplier[]; error: string | null }> {
-  const { data, error } = await supabase.from("suppliers").select("*").order("name");
+  let query = supabase.from("suppliers").select("*").order("name");
+  if (organizationId) query = query.eq("organization_id", organizationId);
+  const { data, error } = await query;
   if (error) return { suppliers: [], error: error.message };
   return { suppliers: (data ?? []) as Supplier[], error: null };
 }
@@ -28,11 +31,14 @@ export async function upsertSupplier(
 
 export async function listBrands(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ brands: Brand[]; error: string | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("brands")
     .select("*, suppliers ( name )")
     .order("name");
+  if (organizationId) query = query.eq("organization_id", organizationId);
+  const { data, error } = await query;
   if (error) return { brands: [], error: error.message };
   return {
     brands: (data ?? []).map((b) => ({
@@ -164,12 +170,14 @@ export async function updatePOStatus(
 export async function listPurchaseOrders(
   supabase: SupabaseClient,
   status?: string,
+  organizationId?: string,
 ): Promise<{ orders: PurchaseOrder[]; error: string | null }> {
   let query = supabase
     .from("purchase_orders")
     .select("*, suppliers ( name )")
     .order("created_at", { ascending: false });
 
+  if (organizationId) query = query.eq("organization_id", organizationId);
   if (status) query = query.eq("status", status);
 
   const { data, error } = await query;
@@ -277,10 +285,13 @@ export function calculateLandedCost(product: {
 
 export async function getProcurementDashboard(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ stats: ProcurementDashboardStats | null; error: string | null }> {
-  const { data: pos } = await supabase
+  let poQuery = supabase
     .from("purchase_orders")
     .select("status, total, supplier_id, suppliers ( name ), created_at");
+  if (organizationId) poQuery = poQuery.eq("organization_id", organizationId);
+  const { data: pos } = await poQuery;
 
   const poList = pos ?? [];
   const open = poList.filter((p) =>

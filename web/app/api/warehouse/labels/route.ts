@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { staffRoute } from "@/lib/thomas/api/staff-route";
 import { renderWarehouseLabel } from "@/lib/barcode/labels";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request): Promise<NextResponse> {
+export const GET = staffRoute(async ({ request }) => {
   const { searchParams } = new URL(request.url);
   const type = (searchParams.get("type") ?? "product") as "product" | "shelf" | "location";
   const value = searchParams.get("value");
@@ -22,4 +23,4 @@ export async function GET(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json({ success: false, error: "Label generation failed." }, { status: 500 });
   }
-}
+});

@@ -5,10 +5,17 @@ import { listMovements } from "./movements";
 
 export async function getDashboardStats(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ stats: InventoryDashboardStats | null; error: string | null }> {
-  const { data: products, error: prodError } = await supabase
+  let productsQuery = supabase
     .from("products")
     .select("id, sku, brand, cost_price, stock, low_stock_threshold, active");
+
+  if (organizationId) {
+    productsQuery = productsQuery.eq("organization_id", organizationId);
+  }
+
+  const { data: products, error: prodError } = await productsQuery;
 
   if (prodError) return { stats: null, error: prodError.message };
 
@@ -71,10 +78,17 @@ export async function getDashboardStats(
 
 export async function generateAlerts(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ alerts: InventoryAlert[]; error: string | null }> {
-  const { data: products } = await supabase
+  let query = supabase
     .from("products")
     .select("id, sku, name, stock, low_stock_threshold, updated_at, created_at");
+
+  if (organizationId) {
+    query = query.eq("organization_id", organizationId);
+  }
+
+  const { data: products } = await query;
 
   const newAlerts: { alert_type: string; product_id: number; message: string; severity: string }[] =
     [];
@@ -148,9 +162,13 @@ export async function generateAlerts(
 
 export async function listProducts(
   supabase: SupabaseClient,
-  options: { search?: string; sort?: string; limit?: number } = {},
+  options: { search?: string; sort?: string; limit?: number; organizationId?: string } = {},
 ): Promise<{ products: ProductMaster[]; error: string | null }> {
   let query = supabase.from("products").select("*").order("updated_at", { ascending: false });
+
+  if (options.organizationId) {
+    query = query.eq("organization_id", options.organizationId);
+  }
 
   if (options.search) {
     const term = `%${options.search}%`;
@@ -193,11 +211,12 @@ export async function getProductByBarcode(
 
 export async function upsertProduct(
   supabase: SupabaseClient,
-  input: Partial<ProductMaster> & { sku: string; name: string },
+  input: Partial<ProductMaster> & { sku: string; name: string; organization_id?: string },
 ): Promise<{ product: ProductMaster | null; error: string | null }> {
   const payload = {
     sku: input.sku,
     name: input.name,
+    ...(input.organization_id ? { organization_id: input.organization_id } : {}),
     brand: input.brand ?? null,
     category: input.category ?? null,
     description: input.description ?? null,

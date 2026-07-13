@@ -1,30 +1,15 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { staffRoute } from "@/lib/thomas/api/staff-route";
+import { getOrganizationId } from "@/lib/thomas/tenant/scope";
 import { getOrderById, updateOrderFulfilment } from "@/lib/orders";
 import { pushOrderToShopify } from "@/lib/shopify/createDraftOrder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-export async function POST(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  const { id } = await context.params;
-
-  let supabase;
-  try {
-    supabase = getSupabaseAdmin();
-  } catch {
-    return NextResponse.json(
-      { success: false, error: "Server is not configured. Missing service role key." },
-      { status: 500 },
-    );
-  }
-
-  const { order, error } = await getOrderById(supabase, id);
+export const POST = staffRoute<{ id: string }>(async ({ supabase, params }) => {
+  const orgId = getOrganizationId();
+  const { order, error } = await getOrderById(supabase, params.id, orgId);
 
   if (error || !order) {
     return NextResponse.json(
@@ -41,14 +26,14 @@ export async function POST(
     }
 
     if (!result.alreadySynced || !order.shopify_draft_order_id) {
-      const { error: updateError } = await updateOrderFulfilment(supabase, id, {
+      const { error: updateError } = await updateOrderFulfilment(supabase, params.id, {
         shopify_draft_order_id: result.draftOrderId,
         fulfilment_status: "ready",
       });
 
       if (updateError) {
         console.error(
-          `Shopify draft created (${result.draftOrderId}) but DB update failed for order ${id}:`,
+          `Shopify draft created (${result.draftOrderId}) but DB update failed for order ${params.id}:`,
           updateError,
         );
         return NextResponse.json({
@@ -72,7 +57,7 @@ export async function POST(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Shopify sync failed.";
-    console.error(`Shopify push failed for order ${id}:`, err);
+    console.error(`Shopify push failed for order ${params.id}:`, err);
     return NextResponse.json({ success: false, error: message }, { status: 502 });
   }
-}
+});

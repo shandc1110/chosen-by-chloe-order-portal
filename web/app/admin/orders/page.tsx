@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { downloadPackingSlip } from "@/lib/client/download-packing-slip";
 import { formatFulfilmentStatus, formatOrderPrice } from "@/lib/format";
 import { formatWeightKg } from "@/lib/weight";
 import type { OrderListItem } from "@/types/order";
@@ -17,20 +18,6 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
       {label}
     </span>
   );
-}
-
-async function downloadPackingSlip(orderId: string | number, orderNumber: string) {
-  const response = await fetch(`/api/orders/${orderId}/packing-slip`);
-  if (!response.ok) throw new Error(`Failed to download ${orderNumber}`);
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `packing-slip-${orderNumber}.pdf`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 export default function AdminOrdersPage() {
@@ -94,7 +81,8 @@ export default function AdminOrdersPage() {
     try {
       for (const order of selectedOrders) {
         const orderNumber = order.order_number ?? String(order.id);
-        await downloadPackingSlip(order.id, orderNumber);
+        const { error: downloadError } = await downloadPackingSlip(order.id, orderNumber);
+        if (downloadError) throw new Error(downloadError);
         succeeded++;
         await new Promise((r) => setTimeout(r, 400));
       }

@@ -43,13 +43,16 @@ export async function updateOrderWarehouseStatus(
 
 export async function getWarehouseDashboard(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ stats: WarehouseDashboardStats | null; error: string | null }> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const { data: orders, error: ordErr } = await supabase
+  let ordersQuery = supabase
     .from("orders")
     .select("id, warehouse_status, created_at, shipped_at");
+  if (organizationId) ordersQuery = ordersQuery.eq("organization_id", organizationId);
+  const { data: orders, error: ordErr } = await ordersQuery;
 
   if (ordErr) return { stats: null, error: ordErr.message };
 
@@ -140,12 +143,14 @@ async function computePerformance(
 export async function listWarehouseOrders(
   supabase: SupabaseClient,
   status?: WarehouseOrderStatus,
+  organizationId?: string,
 ): Promise<{ orders: Record<string, unknown>[]; error: string | null }> {
   let query = supabase
     .from("orders")
     .select("id, order_number, customer_name, warehouse_status, created_at, total_weight_grams")
     .order("created_at", { ascending: true });
 
+  if (organizationId) query = query.eq("organization_id", organizationId);
   if (status) query = query.eq("warehouse_status", status);
   else query = query.not("warehouse_status", "in", '("shipped","delivered","cancelled")');
 

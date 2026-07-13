@@ -4,12 +4,15 @@ import type { Warehouse, WarehouseLocation } from "@/types/warehouse";
 
 export async function listWarehouses(
   supabase: SupabaseClient,
+  organizationId?: string,
 ): Promise<{ warehouses: Warehouse[]; error: string | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("warehouses")
     .select(`*, warehouse_locations (*)`)
     .eq("active", true)
     .order("name");
+  if (organizationId) query = query.eq("organization_id", organizationId);
+  const { data, error } = await query;
 
   if (error) {
     console.error("listWarehouses failed:", error.message);
@@ -68,7 +71,7 @@ export async function getDefaultWarehouseLocation(
 
 export async function createWarehouse(
   supabase: SupabaseClient,
-  input: { code: string; name: string; address?: string },
+  input: { code: string; name: string; address?: string; organization_id?: string },
 ): Promise<{ warehouse: Warehouse | null; error: string | null }> {
   const { data, error } = await supabase
     .from("warehouses")
@@ -76,6 +79,7 @@ export async function createWarehouse(
       code: input.code.toUpperCase(),
       name: input.name,
       address: input.address ?? null,
+      ...(input.organization_id ? { organization_id: input.organization_id } : {}),
     })
     .select()
     .single();

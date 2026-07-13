@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { PackSession } from "@/types/warehouse-ops";
+import { downloadPackingSlip } from "@/lib/client/download-packing-slip";
 import { BigButton, ScanInput } from "@/components/warehouse/WarehouseUI";
 
 type PageProps = { params: Promise<{ orderId: string }> };
@@ -53,13 +54,11 @@ export default function PackingPage({ params }: PageProps) {
 
   async function downloadSlip() {
     if (!orderId || !session) return;
-    const res = await fetch(`/api/orders/${orderId}/packing-slip`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `packing-slip.pdf`;
-    a.click();
+    const { error } = await downloadPackingSlip(orderId, session.order_number ?? orderId);
+    if (error) {
+      setMessage({ text: error, ok: false });
+      return;
+    }
     await fetch("/api/warehouse/packing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
